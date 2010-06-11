@@ -93,6 +93,14 @@ store the file containing the serialized hash table.
     // Apache User must have Write Access to this folder !
     autoloadManager::setSavePath(sys_get_temp_dir());
 
+@bachkoutou
+    // Indicate if you want the autoloadManager to regenerate the php file containing
+    // The autoload classes each time. This is useful when you are developing and 
+    // you don't want to flush your autoload files each time you add a new class.
+    // You have to set the regenerate flag to true if you want to regenerate the 
+    // autoload file, This is optional :
+    autoloadManager::setRegenerate(true);    
+    // Default value of regenerate is false 
 
 Then, you have the four main features offered by this script.
 

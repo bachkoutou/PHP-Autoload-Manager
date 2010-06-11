@@ -69,6 +69,12 @@ class autoloadManager
     private static $_savePath = '.';
 
     /**
+     * Regenerate the autoload file or not. (default: false)
+     * @var bool Defaults to false. 
+     */
+    private static $_regenerate = false;
+
+    /**
      * Get the path where autoload files are saved
      * 
      * @return String path where autoload files will be saved
@@ -153,18 +159,38 @@ class autoloadManager
     }
 
     /**
+     * Set the regeneration of the cached autoload files.
+     * 
+     * @param  bool $flag True or False to regenerate the cached autoload file.
+     */
+    public static function setRegenerate(bool $flag)
+    {
+        self::$_regenerate = $flag;
+    }
+
+    /**
+     * Gets the regeneration flag for the cached autoload files.
+     * 
+     * @return  bool the fla, true if files are generated, false otherwise
+     */
+    public static function getRegenerate()
+    {
+        return self::$regenerate;
+    }
+
+    /**
      * Method used by the spl_autoload_register
      *
      * @param String $className Name of the class
      * @param Boolean $regenerate Indicates if the files should be regenerated
      */
-    public static function loadClass($className, $regenerate = true)
+    public static function loadClass($className)
     {
         if (array_key_exists($className, self::$_classes) && file_exists(self::$_classes[$className]))
         {
             require(self::$_classes[$className]);
         } 
-        elseif (true === $regenerate)
+        elseif (true === self::$_regenerate)
         {
             self::parseFolders();
             self::loadClass($className, false);
