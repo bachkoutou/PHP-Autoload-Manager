@@ -161,11 +161,11 @@ class autoloadManager
     /**
      * Set the regeneration of the cached autoload files.
      * 
-     * @param  bool $flag True or False to regenerate the cached autoload file.
+     * @param  $flag True or False to regenerate the cached autoload file.
      */
-    public static function setRegenerate(bool $flag)
+    public static function setRegenerate($flag)
     {
-        self::$_regenerate = $flag;
+        self::$_regenerate = (bool) $flag;
     }
 
     /**
@@ -175,14 +175,14 @@ class autoloadManager
      */
     public static function getRegenerate()
     {
-        return self::$regenerate;
+        return self::$_regenerate;
     }
 
     /**
      * Method used by the spl_autoload_register
      *
      * @param String $className Name of the class
-     * @param Boolean $regenerate Indicates if the files should be regenerated
+     * @param Boolean $_regenerate Indicates if the files should be regenerated
      */
     public static function loadClass($className)
     {
@@ -190,10 +190,10 @@ class autoloadManager
         {
             require(self::$_classes[$className]);
         } 
-        elseif (true === self::$_regenerate)
+        elseif (!file_exists(self::$_classes[$className]) || (true === self::$_regenerate))
         {
             self::parseFolders();
-            self::loadClass($className, false);
+            self::loadClass($className);
         }
     }
 
