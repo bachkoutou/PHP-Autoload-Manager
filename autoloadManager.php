@@ -63,25 +63,25 @@ class autoloadManager
     private static $_filesRegex = '/\.(inc|php)$/';
 
     /**
-     * Save path (Default is current dir)
+     * Save path (Default is autoload.php under current dir)
      * @var String
      */
-    private static $_savePath = '.';
+    private static $_saveFile = 'autoload.php';
 
-    /**
-     * Regenerate the autoload file or not. (default: false)
-     * @var bool Defaults to false. 
-     */
-    private static $_regenerate = false;
+	/**
+	 * Regenerate the autoload file or not. (default: not)
+	 * @var bool Defaults to false. 
+	 */
+	private static $_regenerate = false;
 
     /**
      * Get the path where autoload files are saved
      * 
      * @return String path where autoload files will be saved
      */
-    public static function getSavePath()
+    public static function getSaveFile()
     {
-        return self::$_savePath;
+        return self::$_saveFile;
     }
 
     /**
@@ -89,9 +89,9 @@ class autoloadManager
      *
      * @param String $path path where autoload files will be saved
      */
-    public static function setSavePath($path)
+    public static function setSaveFile($pathToFile)
     {
-        self::$_savePath = realpath($path);
+        self::$_saveFile= $pathToFile;
     }
 
     /**
@@ -115,7 +115,7 @@ class autoloadManager
         {
             self::$_folders[] = $realpath;
 
-            $autoloadFile = self::getSavePath() . DIRECTORY_SEPARATOR  . md5($realpath) . '.php';
+            $autoloadFile = self::getSaveFile();
 
             if (file_exists($autoloadFile))
             {
@@ -158,55 +158,91 @@ class autoloadManager
         return array_key_exists($className, self::$_classes);
     }
 
-    /**
-     * Set the regeneration of the cached autoload files.
-     * 
-     * @param  $flag True or False to regenerate the cached autoload file.
-     */
-    public static function setRegenerate($flag)
-    {
-        self::$_regenerate = (bool) $flag;
-    }
+	/**
+	 * Set the regeneration of the cached autoload files.
+	 * 
+	 * @param  bool $flag Ture or False to regenerate the cached autoload file.
+	 * @return void
+	 */
+	public static function setRegenerate($flag)
+	{
+		self::$_regenerate = $flag;
+	}
 
-    /**
-     * Gets the regeneration flag for the cached autoload files.
-     * 
-     * @return  bool the fla, true if files are generated, false otherwise
-     */
-    public static function getRegenerate()
+	public static function getRegenerate()
     {
-        return self::$_regenerate;
+    	return self::$_regenerate;
     }
 
     /**
      * Method used by the spl_autoload_register
      *
      * @param String $className Name of the class
-     * @param Boolean $_regenerate Indicates if the files should be regenerated
+     * @param Boolean $regenerate Indicates if the files should be regenerated
      */
     public static function loadClass($className)
     {
-        if (array_key_exists($className, self::$_classes) && file_exists(self::$_classes[$className]))
+        // check if the class already exists in the cache file
+        $loaded = self::checkClass($className, self::$_classes);
+        if (true === self::$_regenerate || !$loaded)
         {
-            require(self::$_classes[$className]);
-        } 
-        elseif (!file_exists(self::$_classes[$className]) || (true === self::$_regenerate))
-        {
-            self::parseFolders();
-            self::loadClass($className);
+            // parse the folders returns the list of all the classes
+            // in the application
+            self::refresh(false);
+            
+            // recheck if the class exists again in the reloaded classes
+           	$loaded = self::checkClass($className, self::$_classes);
+            if (!$loaded)
+            {
+                // set it to null to flag that it was not found
+                // This behaviour fixes the problem with infinite
+                // loop if we have a class_exists() for an inexistant
+                // class. 
+                self::$_classes[$className] = null;
+            }
+            // write to a single file 
+            self::saveToFile(self::$_classes);
         }
     }
+
+    /**
+     * checks if a className exists in the class array
+     * 
+     * @param  mixed  $className    the classname to check
+     * @param  array  $classes      an array of classes
+     * @return Boolean true if the class exists, false otherwise
+     */
+    private static function checkClass($className, array $classes)
+    {
+        if (array_key_exists($className, $classes))
+        {
+            $classPath = $classes[$className];
+            // return true if the 
+            if (null === $classPath)
+            {
+                return true;
+            }    
+            elseif (file_exists($classPath))
+            {
+                require($classes[$className]);
+                return true;
+            }
+        }    
+        return false;
+    }    
+
 
     /**
      * Parse every registred folders, regenerate autoload files and update the $_classes
      */
     private static function parseFolders()
     {
+        $classesArray = array();
         foreach (self::$_folders as $folder)
         {
-            $classes = self::parseFolder($folder);
-            self::saveToFile($classes, $folder);
+            $classesArray = array_merge($classesArray, self::parseFolder($folder));
         }
+        return $classesArray;
     }
 
     /**
@@ -239,7 +275,6 @@ class autoloadManager
                     {
                         // Adding class to map
                         $classes[$className] = $file->getPathname();
-                        self::$_classes[$className] = $classes[$className];
                     }
                 }
             }
@@ -296,22 +331,71 @@ class autoloadManager
      * @param Array $classes Contains all the classes found and the corresponding filename (e.g. {$className} => {fileName})
      * @param String $folder Folder to process
      */
-    private static function saveToFile(array $classes, $folder)
+    private static function saveToFile(array $classes)
     {
         // Write header and comment
         $content  = '<?php ' . PHP_EOL;
         $content .= '/** ' . PHP_EOL;
-        $content .= ' * AutoloadManager Script' . PHP_EOL;
-        $content .= ' * ' . PHP_EOL;
-        $content .= ' * @authors      Al-Fallouji Bashar & Charron Pierrick' . PHP_EOL;
-        $content .= ' * ' . PHP_EOL;
-        $content .= ' * @description This file was automatically generated at ' . date('Y-m-d [H:i:s]') . PHP_EOL;
-        $content .= ' * ' . PHP_EOL;
-        $content .= ' */ ' . PHP_EOL;
+                       $content .= ' * AutoloadManager Script' . PHP_EOL;
+                       $content .= ' * ' . PHP_EOL;
+                       $content .= ' * @authors      Al-Fallouji Bashar & Charron Pierrick' . PHP_EOL;
+                       $content .= ' * ' . PHP_EOL;
+                       $content .= ' * @description This file was automatically generated at ' . date('Y-m-d [H:i:s]') . PHP_EOL;
+                       $content .= ' * ' . PHP_EOL;
+                       $content .= ' */ ' . PHP_EOL;
 
         // Export array
         $content .= 'return ' . var_export($classes, true) . ';';
+        file_put_contents(self::getSaveFile(), $content);
+    }
 
-        file_put_contents(self::getSavePath() . DIRECTORY_SEPARATOR  . md5($folder) . '.php', $content);
+    /**
+     * Returns previously registered classes
+     * 
+     * @return array the list of registered classes
+     */
+    public static function getRegisteredClasses()
+    {
+        return self::$_classes;
+    }    
+
+
+    /**
+     * Refreshes an already generated cache file
+     * This solves problems with previously unexistant classes that
+     * have been made available after.
+     * The optimize functionnality will look at all null values of 
+     * the available classes and does a new parse. if it founds that 
+     * there are classes that has been made available, it will update
+     * the file.
+     * 
+     * @return bool true if there has been a change to the array, false otherwise
+     */
+    public static function refresh($saveToFile = true)
+    {
+        $existantClasses = self::$_classes;
+        $nullClasses = array_filter($existantClasses, array('self','_getNullElements'));
+        $newClasses = self::parseFolders();
+        
+        // $newClasses will override $nullClasses if the same key exists
+        // this allows new added classes (that were flagged as null) to be 
+        // added
+        self::$_classes = array_merge($nullClasses, $newClasses);
+        if ($saveToFile)
+        {
+            self::saveToFile(self::$_classes);
+        }
+        return true;
+    }
+    /**
+     * returns null elements (used in an array filter)
+     *
+     * @param mixed $element the element to check
+     *
+     * @return boolean true if element is null, false otherwise
+     */
+    private static function _getNullElements($element)
+    { 
+        return null === $element; 
     }
 }
