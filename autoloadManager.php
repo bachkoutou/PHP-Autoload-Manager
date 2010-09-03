@@ -184,7 +184,7 @@ class autoloadManager
     {
         // check if the class already exists in the cache file
         $loaded = self::checkClass($className, self::$_classes);
-        if (true === self::$_regenerate || !$loaded)
+        if (true === self::$_regenerate || (!$loaded || 2 === $loaded))
         {
             // parse the folders returns the list of all the classes
             // in the application
@@ -210,7 +210,10 @@ class autoloadManager
      * 
      * @param  mixed  $className    the classname to check
      * @param  array  $classes      an array of classes
-     * @return Boolean true if the class exists, false otherwise
+     * @return int    errorCode     1 if the class exists
+     *                              2 if the class exists and is null
+     *                              (there have been an attempt done)
+     *                              0 if the class does not exist
      */
     private static function checkClass($className, array $classes)
     {
@@ -220,15 +223,15 @@ class autoloadManager
             // return true if the 
             if (null === $classPath)
             {
-                return true;
+                return 2;
             }    
             elseif (file_exists($classPath))
             {
                 require($classes[$className]);
-                return true;
+                return 1;
             }
         }    
-        return false;
+        return 0;
     }    
 
 
